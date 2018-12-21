@@ -1,0 +1,23 @@
+spring:
+  profiles:
+    active: dev
+  application:
+    name: antube-wallet
+  cloud:
+    config:
+      failFast: true
+      discovery:
+        enabled: true
+        serviceId: data-cloud-config-server
+
+eureka:
+  client:
+    serviceUrl:
+      defaultZone: http://47.74.42.188:8761/eureka/
+
+
+
+
+
+
+
