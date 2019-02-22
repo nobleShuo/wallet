@@ -1,21 +1,24 @@
 package com.blockchain.wallet.service.impl;
 
 import com.blockchain.wallet.entity.*;
-import com.blockchain.wallet.enums.*;
+import com.blockchain.wallet.enums.AddressTypeEnum;
+import com.blockchain.wallet.enums.ScanKeyEnum;
+import com.blockchain.wallet.enums.TransactionOrderTypeEnum;
+import com.blockchain.wallet.enums.TransactionTypeEnum;
 import com.blockchain.wallet.service.*;
 import com.blockchain.wallet.utils.CurrencyMathUtil;
-import com.blockchain.wallet.utils.UrlConstUtil;
+import com.blockchain.wallet.utils.RandomUtil;
+import com.blockchain.wallet.utils.TransactionOrderUtil;
 import com.blockchain.wallet.utils.Web3jUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import javax.annotation.Resource;
-import java.util.List;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.UUID;
+import java.math.BigInteger;
+import java.util.*;
 
 /**
  * @author QiShuo
@@ -36,18 +39,40 @@ public class WalletServiceImpl implements IWalletService {
 
     @Resource
     private IWithdrawPublicService withdrawPublicService;
+    @Resource
+    private IBlockInfoService blockInfoService;
+    @Resource
+    private IScanBlockConfigService scanBlockConfigService;
 
     @Value("${privateEth.gas-limit}")
     private String gasLimit;
     @Value("${privateEth.gas-price}")
     private String gasPrice;
+    @Value("#{'${privateEth.server}'.split(',')}")
+    public List<String> ethNodeList;
+    @Resource
+    private IPreAddressService preAddressService;
 
     @Override
-    public String createAddr() {
-        AddressEntity addressEntity = web3jUtil.createAddr(UrlConstUtil.ETH_PRIVATE_NODE_URL);
+    @Transactional(rollbackFor = Exception.class)
+    public String createAddr(Integer type) {
+        Integer count = preAddressService.getCount();
+        AddressEntity addressEntity;
+        if (count == null || count == 0) {
+            log.info("No pre-production address...");
+            addressEntity = web3jUtil.createAddr();
+        } else {
+            PreAddressEntity preAddress = preAddressService.getPreAddress();
+            addressEntity = new AddressEntity(preAddress.getAddress(), preAddress.getPrivateKey(), preAddress.getPassword(), AddressTypeEnum.USER_ADDR.getCode());
+            preAddressService.deletePreAddress(preAddress.getAddress());
+        }
+
         if (null == addressEntity) {
             log.error("Failed to create user address");
             return null;
+        }
+        if (!Objects.isNull(type)) {
+            addressEntity.setAddrType(type);
         }
         addressService.insertAddressEntity(addressEntity);
         return addressEntity.getWalletAddress();
@@ -66,7 +91,7 @@ public class WalletServiceImpl implements IWalletService {
             //使用系统默认的手续费进行转账
             String fee = CurrencyMathUtil.multiply(this.gasLimit, this.gasPrice);
             txParam.setFee(fee);
-            transactionOrder = getTransactionOrder(txParam, TransactionOrderTypeEnum.PRIVATE_SYSTEM_TO_PRIVATE_USER);
+            transactionOrder = TransactionOrderUtil.getTransactionOrder(txParam, TransactionOrderTypeEnum.PRIVATE_SYSTEM_TO_PRIVATE_USER, this.gasLimit, this.gasPrice);
             //添加交易订单
             transactionOrderService.insertTransactionOrder(transactionOrder);
             return transactionOrder.getTransactionId();
@@ -84,9 +109,9 @@ public class WalletServiceImpl implements IWalletService {
                     log.info("To address does not exist,address:{}", txParam.getTo());
                     return null;
                 }
-                transactionOrder = getTransactionOrder(txParam, TransactionOrderTypeEnum.PRIVATE_TO_PRIVATE);
+                transactionOrder = TransactionOrderUtil.getTransactionOrder(txParam, TransactionOrderTypeEnum.PRIVATE_TO_PRIVATE, this.gasLimit, this.gasPrice);
             } else {
-                transactionOrder = getTransactionOrder(txParam, TransactionOrderTypeEnum.PRIVATE_TO_PUBLIC);
+                transactionOrder = TransactionOrderUtil.getTransactionOrder(txParam, TransactionOrderTypeEnum.PRIVATE_TO_PUBLIC, this.gasLimit, this.gasPrice);
             }
             //添加交易订单
             transactionOrderService.insertTransactionOrder(transactionOrder);
@@ -130,41 +155,48 @@ public class WalletServiceImpl implements IWalletService {
     }
 
     @Override
-    public String getPrivateChainTransactionHash(String transactionId) {
-        return Optional.ofNullable(transactionHistoryService.findTransactionHistory(transactionId)).map(TransactionHistoryEntity::getTransactionHash).orElse(null);
+    public TransactionHistoryEntity getPrivateChainTransaction(String transactionId) {
+
+        return Optional.ofNullable(transactionHistoryService.findTransactionHistory(transactionId)).map(transactionHistory -> {
+            if (transactionHistory.getBlockNumber() != null) {
+                BlockInfoEntity blockInfo = blockInfoService.findByBlockNumber(transactionHistory.getBlockNumber());
+                if (!Objects.isNull(blockInfo)) {
+                    transactionHistory.setBlockTime(blockInfo.getBlockTime());
+                }
+            }
+            return transactionHistory;
+        }).orElse(null);
     }
 
-    /**
-     * 获取交易订单
-     *
-     * @param txParam 交易订单参数
-     * @param txType  提现交易类型
-     * @return
-     */
-    private TransactionOrderEntity getTransactionOrder(TransactionParamEntity txParam, TransactionOrderTypeEnum txType) {
-
-        TransactionOrderEntity txOrder = new TransactionOrderEntity();
-        String transactionId = txParam.getTransactionId();
-        if (StringUtils.isEmpty(transactionId)) {
-            //生成交易订单ID
-            transactionId = UUID.randomUUID().toString().replace("-", "");
+    @Override
+    public String privateKeyTransfer(String fromAddress, String toAddress, String privateKey, String value) {
+        BigInteger nonce = web3jUtil.getNonce(fromAddress);
+        //获取交易签名
+        String txSign = web3jUtil.getETHTransactionSign(privateKey, nonce, toAddress, this.gasPrice, new BigInteger(this.gasLimit), value);
+        if (StringUtils.isEmpty(txSign)) {
+            log.error("Transaction signature failed,fromAddress:{}", fromAddress);
+            return null;
         }
-        txOrder.setTransactionId(transactionId);
-        txOrder.setFromAddr(txParam.getFrom());
-        txOrder.setToAddr(txParam.getTo());
-        txOrder.setValue(txParam.getValue());
-        txOrder.setMemo(txParam.getMemo());
-        if (StringUtils.isEmpty(txParam.getFee())) {
-            //给定一个默认手续费
-            String fee = CurrencyMathUtil.multiply(this.gasLimit, this.gasPrice);
-            txOrder.setFee(fee);
-        } else {
-            txOrder.setFee(txParam.getFee());
+        String txHash = web3jUtil.getTxHash(fromAddress, txSign);
+        if (StringUtils.isEmpty(txHash)) {
+            log.error("Transaction broadcasting failed,fromAddress:{}", fromAddress);
+            return null;
         }
-        txOrder.setType(txType.getCode());
-        txOrder.setState(TransactionOrderStateEnum.INIT.getCode());
+        log.info("Transaction success awaits confirmation,fromAddress:{},txHash:{}", fromAddress, txHash);
+        return txHash;
+    }
 
-        return txOrder;
+    @Override
+    public Map<String, BigInteger> getScanBlockConfig() {
+        Map<String, BigInteger> result = new HashMap<>();
+        //最新块高
+        ScanBlockConfigEntity ethBlockHeight = scanBlockConfigService.getScanBlockConfig(ScanKeyEnum.LAST_BLOCK_HEIGHT.getKey());
+        //当前扫描块高
+        ScanBlockConfigEntity ethScanBlockHeight = scanBlockConfigService.getScanBlockConfig(ScanKeyEnum.SCAN_BLOCK_HEIGHT.getKey());
+
+        result.put(ethBlockHeight.getConfigKey(), ethBlockHeight.getConfigValue());
+        result.put(ethScanBlockHeight.getConfigKey(), ethScanBlockHeight.getConfigValue());
+        return result;
     }
 
 }

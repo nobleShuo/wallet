@@ -6,6 +6,7 @@ import java.time.ZonedDateTime;
 
 /**
  * 交易历史实体
+ *
  * @author QiShuo
  * @version 1.0
  * @create 2018/9/12 上午11:00
@@ -77,6 +78,10 @@ public class TransactionHistoryEntity {
      * 块高
      */
     private BigInteger blockNumber;
+    /**
+     * 块时间
+     */
+    private ZonedDateTime blockTime;
 
 
     public Long getId() {
@@ -215,4 +220,11 @@ public class TransactionHistoryEntity {
         this.blockNumber = blockNumber;
     }
 
+    public ZonedDateTime getBlockTime() {
+        return blockTime;
+    }
+
+    public void setBlockTime(ZonedDateTime blockTime) {
+        this.blockTime = blockTime;
+    }
 }

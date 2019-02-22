@@ -21,15 +21,23 @@ import java.util.concurrent.TimeUnit;
  */
 @Configuration
 public class BeanConfig {
+//    @Value("${spring.redis.host}")
+//    private String host;
+//    @Value("${spring.redis.port}")
+//    private int port;
+//    @Value("${spring.redis.password}")
+//    private String password;
+
+
     @Bean
-    public OkHttpClient okHttpClient(){
-        OkHttpClient okHttpClient  = new OkHttpClient.Builder()
+    public OkHttpClient okHttpClient() {
+        return new OkHttpClient.Builder()
                 .connectTimeout(10, TimeUnit.SECONDS)
-                .writeTimeout(10,TimeUnit.SECONDS)
+                .writeTimeout(10, TimeUnit.SECONDS)
                 .readTimeout(20, TimeUnit.SECONDS)
                 .build();
-        return okHttpClient;
     }
+
     @Bean
     @Primary
     @ConditionalOnMissingBean(ObjectMapper.class)
@@ -38,9 +46,20 @@ public class BeanConfig {
         objectMapper.setSerializationInclusion(JsonInclude.Include.NON_EMPTY);
         return objectMapper;
     }
-    @Bean
-    public Executor getExecutor(){
 
-        return Executors.newScheduledThreadPool(5);
+    @Bean
+    public Executor getExecutor() {
+
+        return Executors.newScheduledThreadPool(7);
     }
+
+//    @Bean
+//    public RedissonClient getRedisson() {
+//        Config config = new Config();
+//        config.useSingleServer().setAddress("redis://" + host + ":" + port).setPassword(password);
+//        return Redisson.create(config);
+//    }
+
+
+
 }

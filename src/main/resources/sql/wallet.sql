@@ -1,17 +1,17 @@
 /*
  Navicat Premium Data Transfer
 
- Source Server         : 海外
+ Source Server         : 海外正式
  Source Server Type    : MySQL
  Source Server Version : 50562
- Source Host           : 47.74.42.188
+ Source Host           : 47.91.18.95
  Source Database       : wallet
 
  Target Server Type    : MySQL
  Target Server Version : 50562
  File Encoding         : utf-8
 
- Date: 12/21/2018 14:23:36 PM
+ Date: 12/27/2018 16:14:51 PM
 */
 
 SET NAMES utf8;
@@ -33,7 +33,7 @@ CREATE TABLE `address` (
   `create_time` datetime DEFAULT NULL COMMENT '创建时间',
   `update_time` datetime DEFAULT NULL COMMENT '更新时间',
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=85 DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT COMMENT='私有链地址表';
+) ENGINE=InnoDB AUTO_INCREMENT=241 DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT COMMENT='私有链地址表';
 
 -- ----------------------------
 --  Table structure for `address_public`
@@ -98,7 +98,7 @@ CREATE TABLE `transaction_history` (
   `create_time` datetime DEFAULT NULL COMMENT '创建时间',
   `update_time` datetime DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=18 DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT COMMENT='交易历史表';
+) ENGINE=InnoDB AUTO_INCREMENT=400 DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT COMMENT='交易历史表';
 
 -- ----------------------------
 --  Table structure for `transaction_order`
@@ -117,7 +117,7 @@ CREATE TABLE `transaction_order` (
   `type` tinyint(1) DEFAULT NULL COMMENT '提现订单类型1:表示用户a->用户b双方都是私有链操作,2:表示地址a(私有链地址)->地址b(以太坊公链地址)交易一方to地址为以太坊公链 3:表示私有链系统地址->转到私有链用户地址(用户获得的金币奖励) 4:内部构建的私有链->私有链交易',
   `memo` varchar(55) DEFAULT NULL COMMENT '备忘录',
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=9 DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT COMMENT='交易订单表';
+) ENGINE=InnoDB AUTO_INCREMENT=191 DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT COMMENT='交易订单表';
 
 -- ----------------------------
 --  Table structure for `withdraw_public`

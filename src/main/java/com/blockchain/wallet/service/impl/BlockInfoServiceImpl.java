@@ -6,6 +6,7 @@ import com.blockchain.wallet.service.IBlockInfoService;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.Resource;
+import java.math.BigInteger;
 
 /**
  * @author QiShuo
@@ -20,4 +21,10 @@ public class BlockInfoServiceImpl implements IBlockInfoService {
     public void insertBlockInfoEntity(BlockInfoEntity blockInfo) {
         blockInfoMapper.insertBlockInfoEntity(blockInfo);
     }
+
+    @Override
+    public BlockInfoEntity findByBlockNumber(BigInteger blockNumber) {
+        return blockInfoMapper.findByBlockNumber(blockNumber);
+    }
+
 }

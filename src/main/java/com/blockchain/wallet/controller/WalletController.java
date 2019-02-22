@@ -2,7 +2,6 @@ package com.blockchain.wallet.controller;
 
 import com.alibaba.fastjson.JSONObject;
 import com.blockchain.wallet.entity.*;
-import com.blockchain.wallet.enums.TransactionOrderTypeEnum;
 import com.blockchain.wallet.service.IWalletService;
 import com.blockchain.wallet.utils.ActionResult;
 import com.blockchain.wallet.utils.Web3jUtil;
@@ -12,9 +11,12 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
 import javax.annotation.Resource;
-import java.util.ArrayList;
+import java.math.BigInteger;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * @author QiShuo
@@ -37,11 +39,11 @@ public class WalletController {
      */
     @GetMapping("/createAddr")
     public ActionResult<String> createAddr() {
-        String addr = walletService.createAddr();
+        String addr = walletService.createAddr(null);
         if (StringUtils.isEmpty(addr)) {
             return ActionResult.New(1, "创建用户失败");
         }
-        log.info("生成的钱包地址:{}", addr);
+        log.info("Generated wallet address:{}", addr);
         return ActionResult.New(addr);
     }
 
@@ -171,7 +173,7 @@ public class WalletController {
     }
 
     /**
-     * 获取提现订单详情
+     * 获取公有链的提现订单详情
      *
      * @param transactionId
      * @return
@@ -184,11 +186,48 @@ public class WalletController {
         return ActionResult.New(walletService.getWithdrawDetail(transactionId));
     }
 
-    @GetMapping("/getPrivateChainTransactionHash/{transactionId}")
-    public ActionResult<String> getPrivateChainTransactionHash(@PathVariable("transactionId") String transactionId) {
+    /**
+     * 根据交易ID获取私有链上的交易历史
+     *
+     * @param transactionId
+     * @return
+     */
+    @GetMapping("/getPrivateChainTransaction/{transactionId}")
+    public ActionResult<TransactionHistoryEntity> getPrivateChainTransaction(@PathVariable("transactionId") String transactionId) {
         if (StringUtils.isEmpty(transactionId)) {
             return ActionResult.New(1, "参数为空");
         }
-        return ActionResult.New(walletService.getPrivateChainTransactionHash(transactionId));
+        return ActionResult.New(walletService.getPrivateChainTransaction(transactionId));
+    }
+
+    /**
+     * 使用私钥进行直接转账
+     *
+     * @param paramEntity
+     * @return
+     */
+    @PostMapping("/privateKeyTransfer")
+    public ActionResult<String> privateKeyTransfer(@RequestBody TransferParamEntity paramEntity) {
+        if (StringUtils.isEmpty(paramEntity.getFromAddress()) || StringUtils.isEmpty(paramEntity.getToAddress())
+                || StringUtils.isEmpty(paramEntity.getPrivateKey()) || StringUtils.isEmpty(paramEntity.getValue())) {
+            return ActionResult.New(1, "参数为空");
+        }
+        return ActionResult.New(walletService.privateKeyTransfer(paramEntity.getFromAddress(), paramEntity.getToAddress(), paramEntity.getPrivateKey(), paramEntity.getValue()));
+    }
+
+    @GetMapping("/scanBlockConfig")
+    public ActionResult<Map<String, BigInteger>> getScanBlockConfig() {
+        return ActionResult.New(walletService.getScanBlockConfig());
+    }
+
+    @GetMapping("/batchCreateAddr")
+    public Boolean batchCreateAddr(Integer type, Integer number) {
+        ExecutorService executorService = Executors.newSingleThreadExecutor();
+        executorService.execute(() -> {
+            for (int i = 0; i < number; i++) {
+                walletService.createAddr(type);
+            }
+        });
+        return true;
     }
 }

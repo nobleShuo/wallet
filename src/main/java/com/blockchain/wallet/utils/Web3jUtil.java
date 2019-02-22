@@ -28,7 +28,7 @@ import javax.annotation.Resource;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.util.Arrays;
-import java.util.Random;
+import java.util.List;
 
 /**
  * web3j的工具类
@@ -46,26 +46,29 @@ public class Web3jUtil {
     @Value("${erc.accuracy}")
     private Integer accuracy;
 
+    @Value("#{'${privateEth.server}'.split(',')}")
+    public List<String> ethNodeList;
 
     /**
      * 创建钱包地址
      *
      * @return
      */
-    public AddressEntity createAddr(String ethNodeUrl) {
-        Admin admin = Admin.build(new HttpService(ethNodeUrl));
+    public AddressEntity createAddr() {
+        String url = getHttpServiceUrl();
+        Admin admin = Admin.build(HttpServiceUtil.httpServiceMap.get(url));
         try {
             //获取随机密码
-            String password = getRandomNumbers();
+            String password = randomString();
             NewAccountIdentifier response = admin.personalNewAccount(password).send();
             if (checkResult(response)) {
-                log.info("Failure to create user address, reason:{}", response.getError().getMessage());
+                log.error("Failure to create user address, reason:{}", response.getError().getMessage());
                 return null;
             }
             String accountId = response.getAccountId();
-            String privateKey = getAddresPrivateKey(accountId, password);
+            String privateKey = getAddresPrivateKey(accountId, password, url);
             if (StringUtils.isEmpty(privateKey)) {
-                log.info("Failed to obtain the user's private key, address:{}", accountId);
+                log.error("Failed to obtain the user's private key, address:{}", accountId);
                 return null;
             }
             AddressEntity addressEntity = new AddressEntity();
@@ -100,15 +103,19 @@ public class Web3jUtil {
      * 获取账户余额单位 eth
      *
      * @param addr
-     * @param ethNodeUrl 节点地址
      * @return
      */
-    public String getBalance(String addr, String ethNodeUrl) {
-        Web3j web3j = Web3j.build(new HttpService(ethNodeUrl));
+    public String getBalance(String addr, String... url) {
+        Web3j web3j;
+        if (url.length > 0) {
+            web3j = Web3j.build(new HttpService(url[0]));
+        } else {
+            web3j = Web3j.build(HttpServiceUtil.httpServiceMap.get(getHttpServiceUrl()));
+        }
         try {
             EthGetBalance response = web3j.ethGetBalance(addr, DefaultBlockParameterName.LATEST).send();
             if (checkResult(response)) {
-                log.info("Failed to obtain address balance, reason:{}", response.getError().getMessage());
+                log.error("Failed to obtain address balance, reason:{}", response.getError().getMessage());
                 return null;
             }
             BigInteger balanceWei = response.getBalance();
@@ -193,17 +200,22 @@ public class Web3jUtil {
     /**
      * 广播交易获取txHash
      *
-     * @param hexValue   交易签名
-     * @param ethNodeUrl 节点地址
+     * @param fromAddress from地址用于日志使用
+     * @param hexValue    交易签名
      * @return
      */
-    public String getTxHash(String hexValue, String ethNodeUrl) {
-        Web3j web3j = Web3j.build(new HttpService(ethNodeUrl));
+    public String getTxHash(String fromAddress, String hexValue, String... url) {
+        Web3j web3j;
+        if (url.length > 0) {
+            web3j = Web3j.build(new HttpService(url[0]));
+        } else {
+            web3j = Web3j.build(HttpServiceUtil.httpServiceMap.get(getHttpServiceUrl()));
+        }
         String txHash = null;
         try {
             EthSendTransaction response = web3j.ethSendRawTransaction(hexValue).send();
             if (checkResult(response)) {
-                log.info("Broadcasting Deal Failed,reason:{}", response.getError().getMessage());
+                log.error("Broadcasting Deal Failed,reason:{},fromAddress:{}", response.getError().getMessage(), fromAddress);
                 return null;
             }
             txHash = response.getTransactionHash();
@@ -218,15 +230,14 @@ public class Web3jUtil {
     /**
      * 获取块高
      *
-     * @param ethNodeUrl 节点地址
      * @return
      */
-    public BigInteger getBlockHeight(String ethNodeUrl) {
-        Web3j web3j = Web3j.build(new HttpService(ethNodeUrl));
+    public BigInteger getBlockHeight() {
+        Web3j web3j = Web3j.build(HttpServiceUtil.httpServiceMap.get(getHttpServiceUrl()));
         try {
             EthBlockNumber response = web3j.ethBlockNumber().send();
             if (checkResult(response)) {
-                log.info("Acquisition Block High Failure,reason:{}", response.getError().getMessage());
+                log.error("Acquisition Block High Failure,reason:{}", response.getError().getMessage());
             }
             return response.getBlockNumber();
         } catch (IOException e) {
@@ -240,16 +251,20 @@ public class Web3jUtil {
     /**
      * 获取nonce值
      *
-     * @param addr       地址
-     * @param ethNodeUrl 节点地址
+     * @param addr 地址
      * @return
      */
-    public BigInteger getNonce(String addr, String ethNodeUrl) {
-        Web3j web3j = Web3j.build(new HttpService(ethNodeUrl));
+    public BigInteger getNonce(String addr, String... url) {
+        Web3j web3j;
+        if (url.length > 0) {
+            web3j = Web3j.build(new HttpService(url[0]));
+        } else {
+            web3j = Web3j.build(HttpServiceUtil.httpServiceMap.get(getHttpServiceUrl()));
+        }
         try {
             EthGetTransactionCount response = web3j.ethGetTransactionCount(addr, DefaultBlockParameterName.LATEST).send();
             if (checkResult(response)) {
-                log.info("Failed to get nonce value,reason:{}", response.getError().getMessage());
+                log.error("Failed to get nonce value,reason:{}", response.getError().getMessage());
                 return null;
             }
             return response.getTransactionCount();
@@ -264,16 +279,20 @@ public class Web3jUtil {
     /**
      * 根据交易hash获取交易收据
      *
-     * @param txHash     交易hash
-     * @param ethNodeUrl 节点地址
+     * @param txHash 交易hash
      * @return
      */
-    public TransactionReceipt getTransactionReceipt(String txHash, String ethNodeUrl) {
-        Web3j web3j = Web3j.build(new HttpService(ethNodeUrl));
+    public TransactionReceipt getTransactionReceipt(String txHash, String... url) {
+        Web3j web3j;
+        if (url.length > 0) {
+            web3j = Web3j.build(new HttpService(url[0]));
+        } else {
+            web3j = Web3j.build(HttpServiceUtil.httpServiceMap.get(getHttpServiceUrl()));
+        }
         try {
             EthGetTransactionReceipt response = web3j.ethGetTransactionReceipt(txHash).send();
             if (checkResult(response)) {
-                log.info("Failure to obtain transaction receipt,reason:{}", response.getError().getMessage());
+                log.error("Failure to obtain transaction receipt,reason:{}", response.getError().getMessage());
                 return null;
             }
             return response.getResult();
@@ -288,16 +307,15 @@ public class Web3jUtil {
     /**
      * 根据交易hash获取交易详情
      *
-     * @param txHash     交易hash
-     * @param ethNodeUrl 节点地址
+     * @param txHash 交易hash
      * @return
      */
-    public Transaction getTransactionByHash(String txHash, String ethNodeUrl) {
-        Web3j web3j = Web3j.build(new HttpService(ethNodeUrl));
+    public Transaction getTransactionByHash(String txHash) {
+        Web3j web3j = Web3j.build(HttpServiceUtil.httpServiceMap.get(getHttpServiceUrl()));
         try {
             EthTransaction response = web3j.ethGetTransactionByHash(txHash).send();
             if (checkResult(response)) {
-                log.info("Failure to obtain transaction details,reason:{}", response.getError().getMessage());
+                log.error("Failure to obtain transaction details,reason:{}", response.getError().getMessage());
             }
             return response.getResult();
         } catch (IOException e) {
@@ -312,15 +330,14 @@ public class Web3jUtil {
      * 扫块
      *
      * @param blockHeight 块高
-     * @param ethNodeUrl  节点地址
      * @return
      */
-    public EthBlock scanBlock(BigInteger blockHeight, String ethNodeUrl) {
-        Web3j web3j = Web3j.build(new HttpService(ethNodeUrl));
+    public EthBlock scanBlock(BigInteger blockHeight) {
+        Web3j web3j = Web3j.build(HttpServiceUtil.httpServiceMap.get(getHttpServiceUrl()));
         try {
             EthBlock response = web3j.ethGetBlockByNumber(DefaultBlockParameter.valueOf(blockHeight), false).send();
             if (checkResult(response)) {
-                log.info("Failed to obtain block information,reason:{}", response.getError().getMessage());
+                log.error("Failed to obtain block information,reason:{}", response.getError().getMessage());
             }
             return response;
         } catch (IOException e) {
@@ -356,18 +373,18 @@ public class Web3jUtil {
     }
 
     /**
-     * 获取六位随机数
+     * 获取指定长度的随机字符串
      *
      * @return
      */
-    private String getRandomNumbers() {
-        Random random = new Random();
-        String result = "";
-        for (int i = 0; i < 6; i++) {
-            result += random.nextInt(10);
+    private String randomString() {
+        char[] code = new char[10];
+        for (int i = 0; i < 10; i++) {
+            code[i] = Consts.DIGITS_UPPER[(int) (Math.random() * 62)];
         }
-        return result;
+        return String.valueOf(code);
     }
+
 
     /**
      * 获取地址的私钥
@@ -376,11 +393,20 @@ public class Web3jUtil {
      * @param password
      * @return
      */
-    private String getAddresPrivateKey(String addr, String password) {
+    private String getAddresPrivateKey(String addr, String password, String ethNodeUrl) {
         JSONObject json = new JSONObject();
         json.put("addr", addr);
         json.put("password", password);
-        return okHttpUtil.postRequest(json, UrlConstUtil.NODE_SERVICE_GET_PRIVATE_KEY);
+        return okHttpUtil.postRequest(json, ethNodeUrl.replace("8545", UrlConstUtil.PRIVATE_KEY_PORT));
+    }
+
+    /**
+     * 获取服务器url
+     *
+     * @return
+     */
+    private String getHttpServiceUrl() {
+        return ethNodeList.get(RandomUtil.getRandomInt(ethNodeList.size()));
     }
 
 }

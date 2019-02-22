@@ -1,12 +1,11 @@
 package com.blockchain.wallet.service.impl;
 
+import com.alibaba.fastjson.JSONObject;
+import com.blockchain.wallet.client.MoneyClient;
 import com.blockchain.wallet.entity.*;
 import com.blockchain.wallet.enums.*;
 import com.blockchain.wallet.service.*;
-import com.blockchain.wallet.utils.CurrencyMathUtil;
-import com.blockchain.wallet.utils.DateUtil;
-import com.blockchain.wallet.utils.UrlConstUtil;
-import com.blockchain.wallet.utils.Web3jUtil;
+import com.blockchain.wallet.utils.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -54,20 +53,21 @@ public class ScanBlockJobServiceImpl implements IScanBlockJobService {
 
     @Value("${privateEth.gas-limit}")
     private Long gasLimit;
-
-//    @Resource
-//    private MoneyClient moneyClient;
+    @Value("#{'${privateEth.server}'.split(',')}")
+    public List<String> ethNodeList;
+    @Resource
+    private MoneyClient moneyClient;
 
     @Override
     public void scanBlock(BigInteger blockHeight, ScanBlockConfigEntity scanBlockConfigEntity) {
 
-        EthBlock ethBlockInfo = web3jUtil.scanBlock(blockHeight, UrlConstUtil.ETH_PRIVATE_NODE_URL);
+        EthBlock ethBlockInfo = web3jUtil.scanBlock(blockHeight);
         if (null == ethBlockInfo.getResult()) {
             log.error("Acquisition Block High Failure,Block High:{}", blockHeight);
             return;
         }
         if (CollectionUtils.isEmpty(ethBlockInfo.getResult().getTransactions())) {
-            log.error("No transaction on the block:{}", blockHeight);
+            log.info("No transaction on the block:{}", blockHeight);
             insertBlockAndUpdateConfig(ethBlockInfo, blockHeight, scanBlockConfigEntity);
             return;
         }
@@ -93,9 +93,9 @@ public class ScanBlockJobServiceImpl implements IScanBlockJobService {
             txHistoryList = txHistoryList.stream().filter(txHistory -> txHashList.contains(txHistory.getTransactionHash()))
                     .peek(txHistory -> {
                         //获取交易信息
-                        Transaction txInfo = web3jUtil.getTransactionByHash(txHistory.getTransactionHash(), UrlConstUtil.ETH_PRIVATE_NODE_URL);
+                        Transaction txInfo = web3jUtil.getTransactionByHash(txHistory.getTransactionHash());
                         //获取交易收据
-                        TransactionReceipt txReceipt = web3jUtil.getTransactionReceipt(txHistory.getTransactionHash(), UrlConstUtil.ETH_PRIVATE_NODE_URL);
+                        TransactionReceipt txReceipt = web3jUtil.getTransactionReceipt(txHistory.getTransactionHash());
                         txHistory.setBlockHash(txReceipt.getBlockHash());
                         txHistory.setBlockNumber(txReceipt.getBlockNumber());
                         txHistory.setGasLimit(txInfo.getGas());
@@ -125,7 +125,7 @@ public class ScanBlockJobServiceImpl implements IScanBlockJobService {
             return;
         }
         AddressEntity addressEntity = addressList.get(0);
-        String balance = web3jUtil.getBalance(addressEntity.getWalletAddress(), UrlConstUtil.ETH_PRIVATE_NODE_URL);
+        String balance = web3jUtil.getBalance(addressEntity.getWalletAddress());
         if (StringUtils.isEmpty(balance)) {
             log.error("Failed to obtain master account balance");
             return;
@@ -146,6 +146,12 @@ public class ScanBlockJobServiceImpl implements IScanBlockJobService {
         }
         txOrderList = txOrderList.stream().peek(txOrder -> txOrder.setState(TransactionOrderStateEnum.SUCCESS.getCode())).collect(Collectors.toList());
         transactionOrderService.batchUpdateTxOrder(txOrderList);
+
+        JSONObject jsonObject = new JSONObject();
+        jsonObject.put("transactionIds", txOrderList.stream().filter(txOrder -> TransactionOrderTypeEnum.PRIVATE_SYSTEM_TO_PRIVATE_USER.getCode().equals(txOrder.getType())).map(TransactionOrderEntity::getTransactionId).collect(Collectors.toList()));
+        jsonObject.put("state", AwardStateEnum.SUCCESS.getCode());
+        //更新对应交易的奖励状态
+        moneyClient.updateAwardHistoryState(jsonObject);
     }
 
     /**
@@ -161,9 +167,9 @@ public class ScanBlockJobServiceImpl implements IScanBlockJobService {
         List<TransactionHistoryEntity> txHistoryDepositList = new ArrayList<>();
         for (String txHash : txHashList) {
             //获取交易信息
-            Transaction txInfo = web3jUtil.getTransactionByHash(txHash, UrlConstUtil.ETH_PRIVATE_NODE_URL);
+            Transaction txInfo = web3jUtil.getTransactionByHash(txHash);
             //获取交易收据
-            TransactionReceipt txReceipt = web3jUtil.getTransactionReceipt(txHash, UrlConstUtil.ETH_PRIVATE_NODE_URL);
+            TransactionReceipt txReceipt = web3jUtil.getTransactionReceipt(txHash);
             String toAddr = txInfo.getTo();
             AddressEntity toAddress = addressService.findAddress(toAddr);
             if (null == toAddress) {
@@ -252,6 +258,9 @@ public class ScanBlockJobServiceImpl implements IScanBlockJobService {
                     //解锁地址
                     addressEntity.setState(AddressStateEnum.UNLOCK.getCode());
                     addressEntity.setUpdateTime(ZonedDateTime.now(ZoneOffset.UTC));
+                    if (AddressTypeEnum.SYSTEM_ADDR.getCode().equals(addressEntity.getAddrType())) {
+                        SystemAddressUtil.addressQueue.offer(addressEntity);
+                    }
                     updateAddressEntities.add(addressEntity);
                 }
             }

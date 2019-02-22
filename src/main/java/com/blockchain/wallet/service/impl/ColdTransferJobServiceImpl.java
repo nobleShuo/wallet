@@ -10,12 +10,13 @@ import com.blockchain.wallet.service.IAddressService;
 import com.blockchain.wallet.service.IColdTransferJobService;
 import com.blockchain.wallet.service.ITransactionHistoryService;
 import com.blockchain.wallet.utils.CurrencyMathUtil;
-import com.blockchain.wallet.utils.UrlConstUtil;
+import com.blockchain.wallet.utils.RandomUtil;
 import com.blockchain.wallet.utils.Web3jUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 import org.web3j.protocol.core.methods.response.TransactionReceipt;
 
@@ -25,7 +26,6 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
@@ -51,16 +51,18 @@ public class ColdTransferJobServiceImpl implements IColdTransferJobService {
     private String gasLimit;
     @Value("${privateEth.gas-price}")
     private String gasPrice;
-
+    @Value("#{'${privateEth.server}'.split(',')}")
+    public  List<String> ethNodeList;
 
     @Override
     public void coldTransfer() {
         //主账户的地址,只有一个
-        AddressEntity mainAddr = addressService.findType(AddressTypeEnum.MAIN_ADDR.getCode()).get(0);
-        if (Objects.isNull(mainAddr)) {
+        List<AddressEntity> mainAddrList = addressService.findType(AddressTypeEnum.MAIN_ADDR.getCode());
+        if (CollectionUtils.isEmpty(mainAddrList)) {
             log.info("No corresponding main account address was found");
             return;
         }
+        AddressEntity mainAddr = mainAddrList.get(0);
         List<AddressEntity> systemAddrList = addressService.findType(AddressTypeEnum.SYSTEM_ADDR.getCode());
         List<TransactionHistoryEntity> txHistoryList = new ArrayList<>();
         systemAddrList = systemAddrList.stream().filter(systemAddr ->
@@ -70,7 +72,7 @@ public class ColdTransferJobServiceImpl implements IColdTransferJobService {
             if (AddressStateEnum.UNLOCK.getCode().equals(mainAddr.getState())) {
                 String value = CurrencyMathUtil.subtract(maxBalance, systemAddr.getBalance());
                 String transactionSign = web3jUtil.getETHTransactionSign(mainAddr.getPrivateKey(), mainAddr.getNonce(), systemAddr.getWalletAddress(), gasPrice, new BigInteger(gasLimit), value);
-                String txHash = web3jUtil.getTxHash(transactionSign, UrlConstUtil.ETH_PRIVATE_NODE_URL);
+                String txHash = web3jUtil.getTxHash(systemAddr.getWalletAddress(),transactionSign);
                 if (StringUtils.isEmpty(txHash)) {
                     log.error("Failed to get txHash,address:{}", mainAddr.getWalletAddress());
                     continue;
@@ -82,7 +84,7 @@ public class ColdTransferJobServiceImpl implements IColdTransferJobService {
                     } catch (InterruptedException e) {
                         e.printStackTrace();
                     }
-                    TransactionReceipt transactionReceipt = web3jUtil.getTransactionReceipt(txHash, UrlConstUtil.ETH_PRIVATE_NODE_URL);
+                    TransactionReceipt transactionReceipt = web3jUtil.getTransactionReceipt(txHash);
                     log.info("Transaction receipt for main account transfer", transactionReceipt);
                     if (!StringUtils.isEmpty(transactionReceipt)) {
                         //交易已经打包在块上
@@ -91,15 +93,16 @@ public class ColdTransferJobServiceImpl implements IColdTransferJobService {
                         break;
                     }
                 }
+                mainAddr.setNonce(mainAddr.getNonce().add(BigInteger.valueOf(1L)));
             }
         }
         transactionHistoryService.batchInsertTxHistoryEntity(txHistoryList);
         //获取主账户余额
-        String balance = web3jUtil.getBalance(mainAddr.getWalletAddress(), UrlConstUtil.ETH_PRIVATE_NODE_URL);
+        String balance = web3jUtil.getBalance(mainAddr.getWalletAddress());
         if (!StringUtils.isEmpty(balance)) {
             mainAddr.setBalance(balance);
         }
-        BigInteger nonce = web3jUtil.getNonce(mainAddr.getWalletAddress(), UrlConstUtil.ETH_PRIVATE_NODE_URL);
+        BigInteger nonce = web3jUtil.getNonce(mainAddr.getWalletAddress());
         if (null != nonce) {
             mainAddr.setNonce(nonce);
         }

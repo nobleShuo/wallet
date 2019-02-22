@@ -5,4 +5,8 @@
         insert into block_info (block_number,block_hash,block_time,create_time)
         values (#{blockNumber},#{blockHash},#{blockTime},#{createTime})
     </insert>
+    <select id="findByBlockNumber" resultType="BlockInfoEntity">
+        select block_number as blockNumber,block_hash as blockHash,block_time as blockTime,create_time as createTime
+        from block_info where block_number=#{blockNumber}
+    </select>
 </mapper>

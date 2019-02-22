@@ -3,6 +3,8 @@ package com.blockchain.wallet.mapper;
 import com.blockchain.wallet.entity.BlockInfoEntity;
 import org.springframework.stereotype.Repository;
 
+import java.math.BigInteger;
+
 /**
  * @author QiShuo
  * @version 1.0
@@ -15,4 +17,10 @@ public interface IBlockInfoMapper {
      * @param blockInfo
      */
     void insertBlockInfoEntity(BlockInfoEntity blockInfo);
+    /**
+     * 根据blockNumber获取块信息
+     * @param blockNumber
+     * @return
+     */
+    BlockInfoEntity findByBlockNumber(BigInteger blockNumber);
 }

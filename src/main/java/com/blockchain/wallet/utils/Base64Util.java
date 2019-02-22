@@ -45,7 +45,7 @@ public class Base64Util {
     }
 
     public static void main(String[] args) {
-        System.out.println(Base64Util.decryptBase64("ODM4MjQ0"));
+        System.out.println(Base64Util.decryptBase64("WVRUeDZYVkJjdA=="));
 
     }
 }

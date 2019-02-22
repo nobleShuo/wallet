@@ -16,47 +16,46 @@ appender("debug", RollingFileAppender) {
     encoder(PatternLayoutEncoder) {
         pattern = "%red(%d{HH:mm:ss.SSS}) %blue([%thread %X{traceId},%X{spanId}]) %yellow(%-5level) %green(%logger{36}) - %msg%n"
     }
-    rollingPolicy(SizeAndTimeBasedRollingPolicy){
-        fileNamePattern = '/data/logs/antube/wallet/debug-%d{yyyy-MM-dd-HH}.%i.log'
+    rollingPolicy(SizeAndTimeBasedRollingPolicy) {
+        fileNamePattern = '/data/logs/antube/wallet/debug-%d{yyyy-MM-dd}.%i.log'
         maxFileSize = "50MB"
     }
-    filter(ThresholdFilter){
-        level=DEBUG
+    filter(ThresholdFilter) {
+        level = DEBUG
     }
 }
 
 appender("info", RollingFileAppender) {
     append = true
     encoder(PatternLayoutEncoder) {
-        pattern = pattern = "%red(%d{HH:mm:ss.SSS}) %blue([%thread %X{traceId},%X{spanId}]) %yellow(%-5level) %green(%logger{36}) - %msg%n"
+        pattern = "%red(%d{HH:mm:ss.SSS}) %blue([%thread %X{traceId},%X{spanId}]) %yellow(%-5level) %green(%logger{36}) - %msg%n"
     }
-    rollingPolicy(SizeAndTimeBasedRollingPolicy){
-        fileNamePattern = '/data/logs/antube/wallet/info-%d{yyyy-MM-dd-HH}.%i.log'
+    rollingPolicy(SizeAndTimeBasedRollingPolicy) {
+        fileNamePattern = '/data/logs/antube/wallet/info-%d{yyyy-MM-dd}.%i.log'
         maxFileSize = "50MB"
     }
-    filter(LevelFilter){
-        level=INFO
-        onMatch=FilterReply.ACCEPT
-        onMismatch=FilterReply.DENY
+    filter(LevelFilter) {
+        level = INFO
+        onMatch = FilterReply.ACCEPT
+        onMismatch = FilterReply.DENY
     }
 }
 
 appender("error", RollingFileAppender) {
     append = true
     encoder(PatternLayoutEncoder) {
-        pattern = pattern = "%red(%d{HH:mm:ss.SSS}) %blue([%thread %X{traceId},%X{spanId}]) %yellow(%-5level) %green(%logger{36}) - %msg%n"
+        pattern = "%red(%d{HH:mm:ss.SSS}) %blue([%thread %X{traceId},%X{spanId}]) %yellow(%-5level) %green(%logger{36}) - %msg%n"
     }
-    rollingPolicy(SizeAndTimeBasedRollingPolicy){
-        fileNamePattern = '/data/logs/antube/wallet/error-%d{yyyy-MM-dd-HH}.%i.log'
+    rollingPolicy(SizeAndTimeBasedRollingPolicy) {
+        fileNamePattern = '/data/logs/antube/wallet/error-%d{yyyy-MM-dd}.%i.log'
         maxFileSize = "50MB"
     }
-    filter(LevelFilter){
-        level=ERROR
-        onMatch=FilterReply.ACCEPT
-        onMismatch=FilterReply.DENY
+    filter(LevelFilter) {
+        level = ERROR
+        onMatch = FilterReply.ACCEPT
+        onMismatch = FilterReply.DENY
     }
 }
 
 
-
-root(debug, ["STDOUT", "info", "error"])
+root(INFO, ["STDOUT", "info", "error"])
